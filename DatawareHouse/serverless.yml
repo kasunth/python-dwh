@@ -1,0 +1,89 @@
+service: dwh-data-api
+frameworkVersion: '3'
+provider:
+  name: aws
+  stage: dev
+  region: eu-north-1
+  runtime: python3.9
+  memorySize: 512
+  timeout: 900
+  architecture: arm64
+  tracing:
+    lambda: true
+    apiGateway: true
+  
+  # iam:
+  #    role: !Sub arn:aws:iam::${AWS::AccountId}:role/AWSGlueServiceRole-4chealth  # set the correct Role
+  vpc:
+    securityGroupIds:
+      - sg-0611ea567482114f5
+      
+    subnetIds:
+      - subnet-04c30d6fe5ab54db5
+      - subnet-09b521b8509598757
+      - subnet-032e93ef0a420dff7
+
+  
+  # apiKeys:
+  #   - medium-tutorial-apikey"
+  # Source of API key for usage plan: HEADER or AUTHORIZER
+  apiGateway:
+    apiKeys:
+      - dataapikey
+     
+    shouldStartNameWithService: true
+    # apiKeySourceType: HEADER
+    # Description for the API Gateway stage deployment
+    description: Api gateway for the Red-shift data api
+    # Optional detailed Cloud Watch Metrics
+    metrics: false
+    # Use `${service}-${stage}` naming for API Gateway. Will be `true` by default in v3.
+  # resourcePolicy:
+  #   - Effect: Allow
+  #     Principal: '*'
+  #     Action: execute-api:Invoke
+  #     Resource:
+  #       - execute-api:/*/*/*
+  #     Condition:
+  #       IpAddress:
+  #         aws:SourceIp:
+  #           - '123.123.123.123'
+  # # Optional usage plan configuration
+  # usagePlan:
+  #   quota:
+  #     limit: 5000
+  #     offset: 2
+  #     period: MONTH
+  #   throttle:
+  #     burstLimit: 200
+  #     rateLimit: 100
+custom:
+  prune:
+    automatic: true
+    number: 3
+  warningThreshold: 100
+  apiGatewayThrottling:
+    maxRequestsPerSecond: 3000
+    maxConcurrentRequests: 2000
+
+
+functions:
+  dataApi:
+    handler: functions/data-api-4chealth.lambda_handler
+    name: ${sls:stage}-data-api-4chealth
+    role: arn:aws:iam::846996571657:role/service-role/AWSGlueServiceRole-4chealth  # set the correct Role
+    provisionedConcurrency: 3 
+    reservedConcurrency: 5 
+    tracing: PassThrough 
+    events:
+      - http:
+          path: GetAllDatapoints
+          method: Get
+          cors: true
+          private: true
+    
+
+plugins:
+  - serverless-python-requirements
+  - serverless-step-functions
+  - serverless-prune-plugin

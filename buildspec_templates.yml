@@ -1,0 +1,15 @@
+ version: 0.2
+ 
+ env:
+   environment: "dev"
+ 
+ phases:
+   install:
+     commands:
+       - echo etl-dwh-cloudformation templates to upload
+       - cd CloudFormationsTemplates
+   build:
+     commands:
+       - echo copy Cloudformation templates  files to S3 bucket
+       - aws s3 cp ./ s3://sandclinic-dwh-etl-cf-scripts/  --recursive
+       - echo Finished copied to s3 bucket

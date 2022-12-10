@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS GLUE serverless ETL  template for 4Chealth
+Parameters:
+  RedshiftSecret:
+    Description: Redshift secret
+    Type: String
+  RedshiftSG:
+    Description: Redshift Security group
+    Type: String
+  VPCSubnetID1:
+    Description: A VPC subnet ID
+    Type: String 
+  RedshiftURL:
+    Description: Redshift JDBC URL
+    Type: String 
+  EnvironmentType:
+    Default: dev
+    Description: Deployment environment 
+    Type: String
+  KMSArn :
+    Default: arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/fbed682b-ed0a-4a57-9390-dd5f02508ecb  # set the correct ARN
+    Description: Deployment environment 
+    Type: String
+
+Resources:
+  ETLScriptBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  ETLDataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+  # Glue service role should be there
+  GlueExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub ${EnvironmentType}-4ChealthETLRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+                - redshift.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonRedshiftAllCommandsFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonRedshiftFullAccess
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonVPCFullAccess
+        - arn:aws:iam::aws:policy/AmazonRedshiftDataFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+     
+
+  GluePolicy:
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - s3:GetBucketLocation
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:PutObject
+          Effect: Allow
+          Resource:
+            - '*'
+          # - !Join ['', ['arn:aws:s3:::', !Ref ScriptBucket] ]
+          # - !Join ['', ['arn:aws:s3:::', !Ref ScriptBucket, '/*'] ]
+          # - !Join ['', ['arn:aws:s3:::', !Ref DataBucket] ]
+          # - !Join ['', ['arn:aws:s3:::', !Ref DataBucket, '/*'] ]
+        - Action:
+          - secretsmanager:*
+          Effect: Allow
+          Resource: !Ref RedshiftSecret
+      PolicyName: !Sub ${EnvironmentType}-glue_4ChealthETL_policy
+      Roles:
+      - Ref: GlueExecutionRole
+    Type: AWS::IAM::Policy
+
+  
+
+  
+  ETLSecurityConfigurataion:
+    Type: AWS::Glue::SecurityConfiguration
+    Properties: 
+      EncryptionConfiguration: 
+        S3Encryptions:
+          - KmsKeyArn: !Ref KMSArn
+            S3EncryptionMode: SSE-KMS
+        JobBookmarksEncryption:
+          KmsKeyArn: !Ref KMSArn
+          JobBookmarksEncryptionMode: CSE-KMS
+        CloudWatchEncryption:
+          KmsKeyArn: !Ref KMSArn
+          CloudWatchEncryptionMode : SSE-KMS
+      Name: !Sub ${EnvironmentType}-ETLSecurityConfigurataion
+      
+  GlueRSConnection:
+    Type: "AWS::Glue::Connection"
+    Properties:
+      CatalogId: ${AWS::AccountId}
+      ConnectionInput:
+        Description: "JDBC Connection to Redshift"
+        PhysicalConnectionRequirements:
+          SecurityGroupIdList:
+           - !Ref RedshiftSG
+          SubnetId: !Ref VPCSubnetID1
+        ConnectionType: "JDBC"
+        Name: !Sub ${EnvironmentType}-rs-con
+        ConnectionProperties:
+          "JDBC_CONNECTION_URL": !Ref RedshiftURL
+          "USERNAME": !Join ['', ['{{resolve:secretsmanager:', !Ref RedshiftSecret, ':SecretString:username}}' ]]
+          "PASSWORD": !Join ['', ['{{resolve:secretsmanager:', !Ref RedshiftSecret, ':SecretString:password}}' ]]
+
+  S3CrawlerDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: ${AWS::AccountId}
+      DatabaseInput:
+        Name: !Sub ${EnvironmentType}-s3crawlerdb
+        Description: "S3 Crawler database "
+       
+
+  ETLS3Crawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub ${EnvironmentType}-S3-Daily
+      Description: AWS Glue crawler to crawl heart rate data from S3
+      Role: !GetAtt GlueExecutionRole.Arn
+      DatabaseName: !Ref S3CrawlerDatabase
+      # TablePrefix: HeartRate
+      Targets:
+        S3Targets:
+          - Path: s3://test-kasun-ireland/heartrate/  # setup the multiple datasources 
+          - Path: s3://test-kasun-ireland/stepcount/
+          - Path: s3://test-kasun-ireland/glouecourse/
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Schedule:
+        ScheduleExpression: "cron(0/10 * ? * MON-FRI *)"
+      CrawlerSecurityConfiguration: !Ref ETLSecurityConfigurataion
+      Configuration : "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"},\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"}}}"
+      RecrawlPolicy: 
+         RecrawlBehavior: CRAWL_EVERYTHING
+
+  RedshiftCrawlerDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: ${AWS::AccountId}
+      DatabaseInput:
+        Name: !Sub ${EnvironmentType}-dwhcrawlerdb
+        Description: "AWS Glue container to hold metadata tables for the 4chealth crawler"
+
+  ETLDWHCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub ${EnvironmentType}-DWH
+      Role: !GetAtt GlueExecutionRole.Arn
+      #Classifiers: none, use the default classifier
+      Description: AWS Glue crawler to crawl heart rate data from DWH
+      #Schedule: none, use default run-on-demand
+      DatabaseName: !Ref RedshiftCrawlerDatabase
+      Targets:
+        JdbcTargets:
+          # JDBC Redshift database health data
+          - ConnectionName: !Ref GlueRSConnection
+            Path: dev/public/% # give correct databse name
+          #Exclusions: none
+      # TablePrefix: HeartRate
+      CrawlerSecurityConfiguration: !Ref ETLSecurityConfigurataion
+
+  ETLDataCatelogEncryption:
+      Type: AWS::Glue::DataCatalogEncryptionSettings
+      Properties: 
+        CatalogId: ${AWS::AccountId}
+        DataCatalogEncryptionSettings: 
+         EncryptionAtRest: 
+             CatalogEncryptionMode: SSE-KMS
+             SseAwsKmsKeyId: !Ref KMSArn

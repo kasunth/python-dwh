@@ -1,0 +1,14 @@
+{
+    "name": "dwh-data-api",
+    "version": "1.0.0",
+    "description": "Redshift data api to retrive data" ,
+    "author": "4chealth",
+    "license": "MIT",
+  
+  "devDependencies": {
+    "serverless": "^3.24.1",
+    "serverless-python-requirements": "^6.0.0",
+    "serverless-prune-plugin": "^2.0.1",
+    "serverless-step-functions": "^3.11.0"
+  }
+}

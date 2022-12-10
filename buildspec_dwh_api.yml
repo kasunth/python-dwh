@@ -1,0 +1,26 @@
+version: 0.2
+
+# env:
+#   environment: "dev"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+    commands:
+    
+      - cd DatawareHouse
+      - npm install -g serverless@3.24.1
+      - echo change location to DatawareHouse directory
+      - npm install --silent
+      - pip install botocore --upgrade
+      - pip install boto3 --upgrade
+    
+  build:
+    commands:
+      - echo deploying functions for 4chealth-dwh
+      - serverless deploy
+      - echo finished deploying functions
+
+     
+      

@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: S3 vpc endpoint to connect Redshift serverless Data Warehouse from other AWS services
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - VPCID
+      - VPCSubnetID1
+      # - VPCSubnetID2
+      # - VPCSubnetID3
+    ParameterLabels:
+      VPCID:
+        default: VPC ID
+      VPCSubnetID1:
+        default: VPC Subnet
+      # VPCSubnetID2:
+      #   default: VPC Subnet
+      # VPCSubnetID3:
+      #   default: VPC Subnet
+      # PubliclyAccessible:
+      #   default: true
+
+Parameters:
+  VPCID:
+    Description: A VPC ID
+    Type: String
+  VPCSubnetID1:
+    Description: A VPC subnet ID
+    Type: String
+  # VPCSubnetID2:
+  #   Description: A VPC subnet ID
+  #   Type: String
+  # VPCSubnetID3:
+  #   Description: A VPC subnet ID
+  #   Type: String
+  RouteTableId:
+    Description: A Privare Route table of DWH
+    Type: String
+  SecurityGroupId1:
+    Description: A DWH Security group
+    Type: String
+ 
+  # PubliclyAccessible: 
+  #   Description: Redshift DWH can access publicaly
+  #   Type: String
+  #   ConstraintDescription: must be a true or false
+
+Resources:
+  RedShiftS3EndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds: 
+        - !Ref RouteTableId
+      ServiceName: com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPCID
+      # SecurityGroupIds: 
+      #   - !Ref SecurityGroupId1
+      # SubnetIds: 
+      #   - !Ref VPCSubnetID1
+      # VpcEndpointType: Gateway
+       

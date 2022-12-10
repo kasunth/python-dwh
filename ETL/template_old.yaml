@@ -1,0 +1,64 @@
+# AWSTemplateFormatVersion: '2010-09-09'
+# Transform: 'AWS::Serverless-2016-10-31'
+# Description: An AWS Lambda application that uses AWS Step Functions.
+# Resources:
+#   statemachine:
+#     Type: AWS::Serverless::StateMachine
+#     Properties:
+#       DefinitionSubstitutions:
+#         FunctionArn: !GetAtt function.Arn
+#         Payload: |
+#           {
+#             "max-depth": 5,
+#             "current-depth": 0,
+#             "error-rate": 0.2
+#           }
+#       Definition:
+#         StartAt: Invoke
+#         States:
+#           Invoke:
+#             Type: Task
+#             Resource: arn:aws:states:::lambda:invoke
+#             Parameters:
+#               FunctionName: "${FunctionArn}"
+#               Payload: "${Payload}"
+#               InvocationType: Event
+#             Retry:
+#             - ErrorEquals:
+#               - function.MaxDepthError
+#               - function.MaxDepthError
+#               - Lambda.TooManyRequestsException
+#               - Lambda.ServiceException
+#               - Lambda.Unknown
+#               IntervalSeconds: 1
+#               MaxAttempts: 5
+#             Catch:
+#             - ErrorEquals:
+#               - function.DoublesRolledError
+#               Next: CaughtException
+#             - ErrorEquals:
+#               - States.ALL
+#               Next: UncaughtException
+#             Next: Success
+#           CaughtException:
+#             Type: Pass
+#             Result: The function returned an error.
+#             End: true
+#           UncaughtException:
+#             Type: Pass
+#             Result: Invocation failed.
+#             End: true
+#           Success:
+#             Type: Pass
+#             Result: Invocation succeeded!
+#             End: true
+#       Events:
+#         scheduled:
+#           Type: Schedule
+#           Properties:
+#             Description: Run every minute
+#             Schedule: rate(1 minute)
+#       Type: STANDARD
+#       Policies:
+#         - AWSLambdaRole
+

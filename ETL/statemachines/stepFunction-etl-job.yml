@@ -1,0 +1,13 @@
+Comment: A step function to  execute ETL Jobs
+StartAt: ExecuteETLJobs
+States:
+    ExecuteETLJobs:
+        Type: Task
+        Resource: arn:aws:states:::lambda:invoke
+        Parameters:
+            FunctionName: { "Fn::Join": [ ":", ["arn:aws:lambda:${self:provider.region}", { "Ref": "AWS::AccountId" }, "function:${self:provider.stage}-call-etl-daily-jobs"]]}
+            Payload:
+                Input.$: '$'
+        Next: close
+    close:
+        Type: Succeed

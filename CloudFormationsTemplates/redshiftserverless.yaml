@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Redshift serverless Data Warehouse template for 4Chealth
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - VPCID
+      - VPCSubnetID1
+      - VPCSubnetID2
+      - VPCSubnetID3
+      - PubliclyAccessible
+      - EnvironmentType
+    ParameterLabels:
+      VPCID:
+        default: VPC ID
+      VPCSubnetID1:
+        default: VPC Subnet
+      VPCSubnetID2:
+        default: VPC Subnet
+      VPCSubnetID3:
+        default: VPC Subnet
+      # PubliclyAccessible:
+      #   default: true
+
+Parameters:
+  VPCID:
+    Description: A VPC ID
+    Type: String
+  VPCSubnetID1:
+    Description: A VPC subnet ID
+    Type: String
+  VPCSubnetID2:
+    Description: A VPC subnet ID
+    Type: String
+  VPCSubnetID3:
+    Description: A VPC subnet ID
+    Type: String
+  EnvironmentType:
+        Default: dev
+        Description: Deployment environment 
+        Type: String
+  # PubliclyAccessible: 
+  #   Description: Redshift DWH can access publicaly
+  #   Type: String
+  #   ConstraintDescription: must be a true or false
+
+Resources:
+  RedShiftSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Redshift VPC security group'
+      GroupName: !Sub ${EnvironmentType}-4ChealthDWHSG
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0' #'10.0.0.0/16'
+          IpProtocol: '-1'
+        # - CidrIp: '52.23.63.224/27'
+        #   Description : CIDR Block for Quicksight in us-east-1
+        #   IpProtocol: tcp
+        #   FromPort: 5439
+        #   ToPort: 5439
+        # - CidrIp: '52.70.63.192/27'
+        #   Description : CIDR Block for Firehose in us-east-1
+        #   IpProtocol: tcp
+        #   FromPort: 5439
+        #   ToPort: 5439
+        - CidrIp: '0.0.0.0/0'
+          Description : CIDR Block for JDBC/ODBC client connection
+          IpProtocol: tcp
+          FromPort: 5439
+          ToPort: 5439
+      VpcId:
+        Ref: VPCID
+  
+  RedshiftRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub ${EnvironmentType}-4ChealthDWHRole
+        AssumeRolePolicyDocument:
+          Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: redshift.amazonaws.com
+            Sid: ''
+          Version: 2012-10-17
+      
+
+  
+
+  
+  RedshiftSecret:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: 'sandclinicsecret-dwh'
+      Description: "This is a Secrets Manager secret for Redshift"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'''
+
+  RedshiftPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - s3:GetBucketLocation
+          - s3:GetObject
+          - s3:ListBucket
+          Effect: Allow
+          Resource:
+          - arn:aws:s3:::eu-north-1.serverless-analytics
+          - arn:aws:s3:::eu-north-1.serverless-analytics/*
+
+        - Action:
+          - glue:CreateDatabase
+          - glue:DeleteDatabase
+          - glue:GetDatabase
+          - glue:GetDatabases
+          - glue:UpdateDatabase
+          - glue:CreateTable
+          - glue:DeleteTable
+          - glue:BatchDeleteTable
+          - glue:UpdateTable
+          - glue:GetTable
+          - glue:GetTables
+          - glue:BatchCreatePartition
+          - glue:CreatePartition
+          - glue:DeletePartition
+          - glue:BatchDeletePartition
+          - glue:UpdatePartition
+          - glue:GetPartition
+          - glue:GetPartitions
+          - glue:BatchGetPartition
+          Effect: Allow
+          Resource:
+          - '*'
+        - Action:
+          - s3:GetBucketLocation
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:PutObject
+          Effect: Allow
+          Resource:
+            - '*'
+          # - !Join ['', ['arn:aws:s3:::', !Ref ScriptBucket] ]
+          # - !Join ['', ['arn:aws:s3:::', !Ref ScriptBucket, '/*'] ]
+          # - !Join ['', ['arn:aws:s3:::', !Ref DataBucket] ]
+          # - !Join ['', ['arn:aws:s3:::', !Ref DataBucket, '/*'] ]
+      PolicyName: !Sub ${EnvironmentType}-redshift_sandClinic_policy
+      Roles:
+      - Ref: RedshiftRole
+
+
+  RedshiftNameSpace:
+    Type: AWS::RedshiftServerless::Namespace
+    Properties: 
+      AdminUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref RedshiftSecret, ':SecretString:username}}' ]]
+      AdminUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref RedshiftSecret, ':SecretString:password}}' ]]
+      DbName: !Sub ${EnvironmentType}-dwh-4chealth-db
+      # DefaultIamRoleArn: arn:aws:iam::846996571657:role/service-role/AmazonRedshift-CommandsAccessRole-20221024T151624
+      # IamRoles: 
+      # - Fn::GetAtt: [ RedshiftRole, Arn ]
+      # KmsKeyId: String
+      # LogExports: 
+      #   - String
+      NamespaceName: !Sub ${EnvironmentType}-sandclinic-np
+     
+
+
+  Redshift:
+    Type: AWS::RedshiftServerless::Workgroup
+    Properties: 
+      SubnetIds: 
+        - !Ref VPCSubnetID1
+        - !Ref VPCSubnetID2
+        - !Ref VPCSubnetID3
+      SecurityGroupIds: 
+        - !Ref RedShiftSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthRedshift-DWH
+      BaseCapacity: 128
+      EnhancedVpcRouting: False
+      NamespaceName: !Ref RedshiftNameSpace
+      PubliclyAccessible: False #!Ref PubliclyAccessible
+      WorkgroupName: !Sub ${EnvironmentType}-sandclinic-wg
+      
+
+
+
+Outputs:
+  RedshiftSG:
+    Description: Redshift DWH security group
+    Value: !Ref RedShiftSecurityGroup
+  RedshiftSecret:
+    Description: Redshift Secret
+    Value: !Ref RedshiftSecret

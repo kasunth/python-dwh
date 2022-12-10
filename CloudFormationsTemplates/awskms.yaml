@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS KMS template for 4Chealth Data Warehouse- ETL
+
+Resources:
+  SandClinicDWHEncrptKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: AWS KMS key to encrypt data warehouse
+      Enabled: true
+      EnableKeyRotation: false
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: 10
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: 'arn:aws:iam::${AWS::AccountId}:user/kasun@ideabits.se'
+            Action: 'kms:*'
+            Resource: '*'
+  SandClinicETLEncrptKey:
+      Type: AWS::KMS::Key
+      Properties: 
+        Description: AWS KMS key to encrypt data in ETL
+        Enabled: true
+        EnableKeyRotation: false
+        KeySpec: SYMMETRIC_DEFAULT
+        KeyUsage: ENCRYPT_DECRYPT
+        MultiRegion: false
+        PendingWindowInDays: 10
+        KeyPolicy:
+          Version: 2012-10-17
+          Id: key-default-1
+          Statement:
+            - Sid: Enable IAM User Permissions
+              Effect: Allow
+              Principal:
+                AWS: 'arn:aws:iam::${AWS::AccountId}:user/kasun@ideabits.se'
+              Action: 'kms:*'
+              Resource: '*'
+            - Effect: Allow
+              Principal:
+                Service: logs.${AWS::Region}.amazonaws.com
+              Action:
+              - kms:Encrypt*
+              - kms:Decrypt*
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:Describe*
+              Resource: "*"
+              Condition:
+                ArnEquals:
+                  kms:EncryptionContext:aws:logs:arn: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws-glue/crawlers-role/dev-4ChealthETLRole-test-sec
+                # set the correct log group ARN
+    
+  # KeyAlias:
+  #   Type: 'AWS::KMS::Alias'
+  #   Properties:
+  #     AliasName: alias/redshiftencryptkey
+  #     TargetKeyId: !Ref SandClinicDWHEncrptKey

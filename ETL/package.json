@@ -1,0 +1,14 @@
+{
+    "name": "etl-functions-scheduled-cron",
+    "version": "1.0.0",
+    "description": " creating a function that runs as a cron job using the serverless `schedule` event and execute etl jobs" ,
+    "author": "4chealth",
+    "license": "MIT",
+  
+  "devDependencies": {
+    "serverless": "^3.24.1",
+    "serverless-python-requirements": "^6.0.0",
+    "serverless-prune-plugin": "^2.0.1",
+    "serverless-step-functions": "^3.11.0"
+  }
+}

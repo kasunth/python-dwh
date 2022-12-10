@@ -1,0 +1,66 @@
+service: etl-functions-4chealth
+frameworkVersion: '3'
+provider:
+  name: aws
+  stage: dev
+  region: eu-north-1
+  runtime: python3.9
+  memorySize: 512
+  timeout: 900
+  architecture: arm64
+  tracing:
+    lambda: true
+  iam:
+     role: !Sub arn:aws:iam::${AWS::AccountId}:role/AWSGlueServiceRole-4chealth
+     # arn:aws:iam::${AWS::AccountId}:role/service-role/AWSGlueServiceRole-4chealth # set the correct Role
+  
+        
+  vpc:
+    securityGroupIds:
+      - sg-0611ea567482114f5
+      
+    subnetIds:
+      - subnet-04c30d6fe5ab54db5
+      - subnet-09b521b8509598757
+      - subnet-032e93ef0a420dff7
+stepFunctions:
+  validate: true
+  stateMachines:
+    ExecuteETLJobs:
+      name: ExecuteETLJobs
+      events:
+        - http:
+            path: execute-etl-jobs
+            method: POST
+            cors: true
+            iamRole: arn:aws:iam::846996571657:role/service-role/AWSGlueServiceRole-4chealth 
+        - schedule: 
+            rate: rate(24 hours)  # Invoke step function every day
+            enabled: true
+            input:
+              key1: value1
+      definition: ${file(./statemachines/stepFunction-etl-job.yml)}
+      # loggingConfig:
+      #   level: ERROR
+      #   includeExecutionData: true
+      #   destinations:
+      #     - Fn::GetAtt: [MyLogGroup, Arn]
+      tracingConfig:
+        enabled: true
+
+        
+functions:
+  etlJobHandler:
+    handler: functions/etljobcall.lambda_handler
+    name: ${sls:stage}-call-etl-daily-jobs
+    provisionedConcurrency: 3 
+    reservedConcurrency: 5 
+    tracing: PassThrough 
+    # events:
+    #   # Invoke Lambda function every minute
+    #   - schedule: rate(120 minutes)
+
+plugins:
+  - serverless-python-requirements
+  - serverless-step-functions
+  - serverless-prune-plugin

@@ -1,0 +1,293 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: VPC template for 4Chealth Data wareHouse
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - VPCCIDR
+      - PublicSubnet1CIDR
+      - PublicSubnet2CIDR
+      - PublicSubnet3CIDR
+      - PrivateSubnet1CIDR
+      - PrivateSubnet2CIDR
+      - PrivateSubnet3CIDR
+      - SSHRemoteAccessCIDR
+      - BastionKeyPairName
+      - EnvironmentType
+    ParameterLabels:
+      VPCCIDR:
+        default: VPC CIDR
+      PublicSubnet1CIDR:
+        default: Public subnet 1 CIDR
+      PublicSubnet2CIDR:
+        default: Public subnet 2 CIDR
+      PublicSubnet3CIDR:
+        default: Public subnet 3 CIDR
+      PrivateSubnet1CIDR:
+        default: Private subnet 1 CIDR
+      PrivateSubnet2CIDR:
+        default: Private subnet 2 CIDR
+      PrivateSubnet3CIDR:
+        default: Private subnet 3 CIDR
+
+Parameters:
+  VPCCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.0.0/16
+    Description: CIDR Block for the VPC
+    Type: String
+  PublicSubnet1CIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.1.0/24
+    Description: CIDR Block for the public DMZ subnet 1 located in Availability Zone 1
+    Type: String
+  PublicSubnet2CIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.2.0/24
+    Description: CIDR Block for the public DMZ subnet 2 located in Availability Zone 2
+    Type: String
+  PublicSubnet3CIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.3.0/24
+    Description: CIDR Block for the public DMZ subnet 3 located in Availability Zone 3
+    Type: String
+  PrivateSubnet1CIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.10.0/24
+    Description: CIDR block for private subnet 1 located in Availability Zone 1
+    Type: String
+  PrivateSubnet2CIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.11.0/24
+    Description: CIDR block for private subnet 2 located in Availability Zone 2
+    Type: String
+  PrivateSubnet3CIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: Must be a valid IP range in x.x.x.x/x notation
+    Default: 10.0.12.0/24
+    Description: CIDR block for private subnet 3 located in Availability Zone 3
+    Type: String
+  EnvironmentType:
+    Default: dev
+    Description: Deployment environment 
+    Type: String
+
+Resources:
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: True
+      InstanceTenancy: "default"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4Chealth-DWH
+
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties: 
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4Chealth-DWH
+
+  
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: 
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref myVPC
+
+  VPCPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      MapPublicIpOnLaunch: True
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: 
+        Fn::Select: 
+          - 0
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPub1
+      VpcId: !Ref myVPC
+  
+  VPCPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      MapPublicIpOnLaunch: True
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: 
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPub2
+      VpcId: !Ref myVPC
+
+  VPCPublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      MapPublicIpOnLaunch: True
+      CidrBlock: !Ref PublicSubnet3CIDR
+      AvailabilityZone: 
+        Fn::Select: 
+          - 2
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPub3
+      VpcId: !Ref myVPC
+
+  VPCPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      AvailabilityZone: 
+        Fn::Select: 
+          - 0
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPriv1
+      VpcId: !Ref myVPC
+  
+  VPCPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      AvailabilityZone: 
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPriv2
+      VpcId: !Ref myVPC
+  
+  VPCPrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PrivateSubnet3CIDR
+      AvailabilityZone: 
+        Fn::Select: 
+          - 2
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPriv3
+      VpcId: !Ref myVPC
+  EIP:
+    Type: AWS::EC2::EIP
+
+  NatGW:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      SubnetId: !Ref VPCPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: "4Chealth-NAT-Pipeline"
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPubRT
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref IGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteSubnetAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref VPCPublicSubnet1
+  
+  PublicRouteSubnetAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref VPCPublicSubnet2
+
+  PublicRouteSubnetAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref VPCPublicSubnet3
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentType}-4ChealthPrivRT 
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref NatGW
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateRouteSubnetAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref VPCPrivateSubnet1
+
+  PrivateRouteSubnetAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref VPCPrivateSubnet2
+  
+  PrivateRouteSubnetAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref VPCPrivateSubnet3
+
+Outputs:
+  4ChealthDVPCID:
+    Description: "VPC Id"
+    Value: !Ref myVPC
+  4ChealthPublic1:
+    Description: Public Subnet1
+    Value: !Ref VPCPublicSubnet1
+  4ChealthPublic2:
+    Description: Public Subnet 2
+    Value: !Ref VPCPublicSubnet2
+  4ChealthPublic3:
+    Description: Public Subnet 3
+    Value: !Ref VPCPublicSubnet3
+  4ChealthPrivate1:
+    Description: Private Subnet1
+    Value: !Ref VPCPrivateSubnet1
+  4ChealthPrivate2:
+    Description: Private Subnet 2
+    Value: !Ref VPCPrivateSubnet2
+  4ChealthPrivate3:
+    Description: Private Subnet 3
+    Value: !Ref VPCPrivateSubnet3
+  4CHealthPrivateRouteTable:
+    Description: Private Route table
+    Value: !Ref PrivateRouteTable
